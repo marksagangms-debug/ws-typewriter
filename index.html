@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GSAP Typewriter Exploration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <p class="eyebrow">Content</p>
+        <h1 class="headline">
+          <span class="line">Social media &amp; content</span>
+          <span class="line">
+            marketing,
+            <span
+              class="tag"
+              dv-typewriter="auto duration-72 delete-44 before-delete-1200 before-type-180 loop"
+              dv-typewriter-colors="#F39A02|#0B7A17|#91128A|#F14921"
+            >
+              made fun|made bold|made creative|made intentional
+            </span>
+          </span>
+        </h1>
+      </section>
+
+      <section class="stack">
+        <article class="hero">
+          <p class="eyebrow">Content</p>
+          <h2 class="headline headline--small">
+            <span class="line">Social media &amp; content</span>
+            <span class="line">
+              marketing,
+              <span
+                class="tag"
+                dv-typewriter="inview duration-80 delete-50 before-delete-900 before-type-220 loop"
+                dv-typewriter-colors="#F39A02|#0B7A17|#91128A|#F14921"
+              >
+                made fun|made bold|made creative|made intentional
+              </span>
+            </span>
+          </h2>
+        </article>
+      </section>
+    </main>
+
+    <script src="./dist/typewriter-webstudio.js"></script>
+  </body>
+</html>

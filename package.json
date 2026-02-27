@@ -1,0 +1,17 @@
+{
+  "name": "gsap-exploration",
+  "version": "1.0.0",
+  "description": "GSAP typewriter component for Webstudio",
+  "main": "dist/typewriter-webstudio.js",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "gsap": "^3.14.2"
+  }
+}
