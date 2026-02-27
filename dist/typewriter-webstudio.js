@@ -4,8 +4,7 @@
   var TYPEWRITER_ATTR = "dv-typewriter";
   var READY_FLAG = "dvTypewriterReady";
   var GSAP_URL = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js";
-  var TEXT_PLUGIN_URL =
-    "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/TextPlugin.min.js";
+  var DEFAULT_SEPARATOR = /\s*\|\s*/;
 
   function loadScript(url) {
     return new Promise(function (resolve, reject) {
@@ -39,21 +38,15 @@
   }
 
   function ensureGsap() {
-    if (window.gsap && window.TextPlugin) {
-      window.gsap.registerPlugin(window.TextPlugin);
+    if (window.gsap) {
       return Promise.resolve();
     }
 
-    return loadScript(GSAP_URL)
-      .then(function () {
-        return loadScript(TEXT_PLUGIN_URL);
-      })
-      .then(function () {
-        if (!window.gsap || !window.TextPlugin) {
-          throw new Error("GSAP or TextPlugin unavailable.");
-        }
-        window.gsap.registerPlugin(window.TextPlugin);
-      });
+    return loadScript(GSAP_URL).then(function () {
+      if (!window.gsap) {
+        throw new Error("GSAP unavailable.");
+      }
+    });
   }
 
   function parseOptions(raw) {
@@ -115,8 +108,11 @@
   function parseWords(el) {
     var explicit = el.getAttribute("dv-typewriter-items");
     var source = explicit || el.textContent || "";
+    var separator = el.getAttribute("dv-typewriter-separator");
+    var splitRule = separator ? separator : DEFAULT_SEPARATOR;
+
     return source
-      .split("|")
+      .split(splitRule)
       .map(function (item) {
         return item.trim();
       })
@@ -129,7 +125,7 @@
       return [];
     }
     return raw
-      .split("|")
+      .split(DEFAULT_SEPARATOR)
       .map(function (color) {
         return color.trim();
       })
@@ -151,6 +147,7 @@
   function createNodes(el) {
     var textNode = document.createElement("span");
     textNode.className = "dv-typewriter-text";
+    textNode.style.whiteSpace = "pre";
 
     var cursor = document.createElement("span");
     cursor.className = "dv-typewriter-cursor";
@@ -163,66 +160,73 @@
     return { textNode: textNode, cursor: cursor };
   }
 
-  function buildTimeline(instance, options, words, colors, colorTarget) {
-    var gsap = window.gsap;
-    var repeatValue = options.loop ? -1 : 0;
-
-    var timeline = gsap.timeline({
-      paused: options.trigger === "inview",
-      repeat: repeatValue,
-      defaults: { ease: "none" }
+  function wait(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, Math.max(0, ms));
     });
-
-    words.forEach(function (word, index) {
-      var isFinalWord = index === words.length - 1;
-      var shouldDelete = options.loop || !isFinalWord;
-      var typeDuration = Math.max(0.18, (word.length * options.duration) / 1000);
-      var deleteDuration = Math.max(
-        0.12,
-        (word.length * options.deleteSpeed) / 1000
-      );
-      var color = colors[index % colors.length];
-
-      if (color) {
-        timeline.to(colorTarget, {
-          backgroundColor: color,
-          duration: 0.3,
-          ease: "power1.out"
-        });
-      }
-
-      timeline.to(instance.textNode, {
-        duration: typeDuration,
-        text: { value: word }
-      });
-
-      if (shouldDelete) {
-        timeline.to({}, { duration: options.beforeDelete / 1000 });
-        timeline.to(instance.textNode, {
-          duration: deleteDuration,
-          text: { value: "" }
-        });
-        timeline.to({}, { duration: options.beforeType / 1000 });
-      }
-    });
-
-    if (!options.loop) {
-      timeline.eventCallback("onComplete", function () {
-        gsap.set(instance.cursor, { opacity: 1 });
-      });
-    }
-
-    return timeline;
   }
 
-  function attachTrigger(options, timeline, el) {
-    if (options.trigger !== "inview") {
-      timeline.play(0);
-      return;
+  function tweenBackground(target, color) {
+    if (!color) {
+      return Promise.resolve();
     }
+    return new Promise(function (resolve) {
+      window.gsap.to(target, {
+        backgroundColor: color,
+        duration: 0.3,
+        ease: "power1.out",
+        onComplete: resolve
+      });
+    });
+  }
 
+  async function typeWord(instance, word, stepDelay) {
+    for (var i = 1; i <= word.length; i += 1) {
+      instance.textNode.textContent = word.slice(0, i);
+      await wait(stepDelay);
+    }
+  }
+
+  async function deleteWord(instance, stepDelay) {
+    for (var i = instance.textNode.textContent.length - 1; i >= 0; i -= 1) {
+      instance.textNode.textContent = instance.textNode.textContent.slice(0, i);
+      await wait(stepDelay);
+    }
+  }
+
+  async function runSequence(instance, options, words, colors, colorTarget) {
+    var index = 0;
+
+    do {
+      var word = words[index];
+      var color = colors.length ? colors[index % colors.length] : null;
+      var isFinalWord = index === words.length - 1;
+      var shouldDelete = options.loop || !isFinalWord;
+
+      await tweenBackground(colorTarget, color);
+      await typeWord(instance, word, options.duration);
+
+      if (shouldDelete) {
+        await wait(options.beforeDelete);
+        await deleteWord(instance, options.deleteSpeed);
+        await wait(options.beforeType);
+      }
+
+      if (!options.loop && isFinalWord) {
+        if (instance.cursorTween) {
+          instance.cursorTween.kill();
+        }
+        window.gsap.set(instance.cursor, { opacity: 1 });
+        return;
+      }
+
+      index = (index + 1) % words.length;
+    } while (true);
+  }
+
+  function startWhenInView(el, run) {
     if (!("IntersectionObserver" in window)) {
-      timeline.play(0);
+      run();
       return;
     }
 
@@ -230,7 +234,7 @@
       function (entries) {
         entries.forEach(function (entry) {
           if (entry.isIntersecting) {
-            timeline.play(0);
+            run();
             observer.disconnect();
           }
         });
@@ -257,7 +261,7 @@
     var nodes = createNodes(el);
 
     var gsap = window.gsap;
-    gsap.to(nodes.cursor, {
+    nodes.cursorTween = gsap.to(nodes.cursor, {
       opacity: 0,
       duration: 0.52,
       repeat: -1,
@@ -265,8 +269,20 @@
       ease: "power1.inOut"
     });
 
-    var timeline = buildTimeline(nodes, options, words, colors, colorTarget);
-    attachTrigger(options, timeline, el);
+    var run = function () {
+      runSequence(nodes, options, words, colors, colorTarget).catch(function (
+        error
+      ) {
+        console.error("[dv-typewriter] Sequence failed:", error);
+      });
+    };
+
+    if (options.trigger === "inview") {
+      startWhenInView(el, run);
+    } else {
+      run();
+    }
+
     el.dataset[READY_FLAG] = "true";
   }
 
